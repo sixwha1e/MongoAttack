@@ -4,6 +4,8 @@
 ## Usage
 ### 启动:
 ```
+mongoattack/globalvalue.py 全局变量文件
+
 $ cd mongoattack/
 $ python mongoattack.py
 ```
@@ -14,6 +16,8 @@ shodan
 requests
 urllib2
 urllib
+pymongo
+（本地要装mongoDB
 ``` 
 ### 效果图:
 ![](imgs/cover.png)
