@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 # __author__: sixwhale
 from Mode.scan import scanMongoIP
+from Mode.inject import InjectOption
 from Mode.attack import mgAttack, cloneDB
 from globalvalue import GlobalValue
 import getopt
@@ -15,7 +16,7 @@ def _cover():
 | |\/| |/ _ \| '_ \ / _` |/ _ \ / _ \| __| __/ _` |/ __| |/ /
 | |  | | (_) | | | | (_| | (_) / ___ \ |_| || (_| | (__|   <
 |_|  |_|\___/|_| |_|\__, |\___/_/   \_\__|\__\__,_|\___|_|\_\  Author: sixwhale
-                    |___/                                      Version: 1.0.0
+                    |___/                                      Version: 1.0.1
     '''
 
 def _usage():
@@ -56,7 +57,12 @@ def urlInject():
         sys.argv[2:],
         'u:'
     )
-    print '[*] this function is testing...'
+    for o,a in optlist:
+        if o == '-u':
+            url = a
+    print url 
+    InjectOption(url)
+
 
 def scanIP(scanNum):
     scanNum = scanNum
@@ -86,7 +92,7 @@ if __name__ == '__main__':
             if o == '--mongo':
                 _cover()
                 mongoAttack(port)
-            if o == 'inject':
+            if o == '--inject':
                 _cover()
                 urlInject()
             if o == '--scan':

