@@ -8,43 +8,15 @@ from colorama import Fore
 from colorama import init
 from colorama import Style
 init(autoreset=True)
+from Lib.common import printCover
 from Lib.common import printErrMsg
+from Lib.common import printUsage
 from Lib.setting import MY_IP
 from Lib.setting import MY_PORT
 from Mode.attack import mgAttack
 from Mode.inject import InjectOption
 from Mode.scan import scanMongoIP
 
-
-def _cover():
-    '''使用方法'''
-    print '''
- __  __                           _   _   _             _
-|  \/  | ___  _ __   __ _  ___   / \ | |_| |_ __ _  ___| | __
-| |\/| |/ _ \| '_ \ / _` |/ _ \ / _ \| __| __/ _` |/ __| |/ /
-| |  | | (_) | | | | (_| | (_) / ___ \ |_| || (_| | (__|   <
-|_|  |_|\___/|_| |_|\__, |\___/_/   \_\__|\__\__,_|\___|_|\_\  Author: sixwhale
-                    |___/                                      Version: 1.0.2
-    '''
-
-def _usage():
-    print '''    usage: python mongoattack.py <command> <option>
-
-    <command>   <option>                  <description>
-    -h,--help                             帮助
-
-    --scan                                scan ip mode
-                -n <number>               指定显示扫描数量 默认为10
-
-    --mongo                               mongo attack mode
-                -t <ip>                   [必选参数] 指定目标IP 爆库爆集合
-                -p <port>                 指定目标端口 默认为27017
-                -c <dbname>               指定数据库复制
-
-    --inject                              url inject mode
-                -u <url>                  指定目标url 进行GET型注入攻击
-                -r <filename>             burp抓POST数据包 进行POST型注入攻击
-    '''
 
 def mongoAttack(port):
     port = port
@@ -73,9 +45,7 @@ def urlInject():
         elif o == '-r':
             url = None
             reqFile = a
-
     InjectOption(url, reqFile)
-
 
 def scanIP(scanNum):
     scanNum = scanNum
@@ -103,20 +73,20 @@ if __name__ == '__main__':
         )
         for o,a in optlist:
             if o == '--mongo':
-                _cover()
+                printCover()
                 mongoAttack(port)
             if o == '--inject':
-                _cover()
+                printCover()
                 urlInject()
             if o == '--scan':
-                _cover()
+                printCover()
                 scanIP(scanNum)
             if o == '-h' or o == '--help':
-                _cover()
-                _usage()
+                printCover()
+                printUsage()
                 exit()
     except Exception, e:
-        printErrMsg(e)
+        printErrMsg('[Error] %s. Please use \'-h\' or \'--help\'' % e)
     if len(sys.argv) < 2:
-        _cover()
-        _usage()
+        printCover()
+        printUsage()

