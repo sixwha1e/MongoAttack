@@ -43,7 +43,7 @@ def _usage():
 
     --inject                              url inject mode
                 -u <url>                  指定目标url 进行GET型注入攻击
-                -r <filename>             burp抓包文本 进行POST型注入攻击
+                -r <filename>             burp抓POST数据包 进行POST型注入攻击
     '''
 
 def mongoAttack(port):

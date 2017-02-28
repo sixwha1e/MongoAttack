@@ -4,7 +4,8 @@
 ## Usage
 ### 启动:
 ```
-mongoattack/globalvalue.py 全局变量文件
+配置文件修改：
+mongoattack/Lib/setting.py
 
 $ cd mongoattack/
 $ python mongoattack.py
