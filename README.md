@@ -29,7 +29,7 @@ pymongo (3.4.0) [本地要装mongoDB]
 
 ### Todo：
 * **~~--inject 模块~~**
-* **POST型注入**
+* **POST型注入 (doing)**
 * ......( 暂时还没想好 有想法的同学可以私聊 prpr
 
 
