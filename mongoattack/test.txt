@@ -9,4 +9,4 @@ Upgrade-Insecure-Requests: 1
 Content-Type: application/x-www-form-urlencoded
 Content-Length: 4
 
-id=1
+id=1&act=find
