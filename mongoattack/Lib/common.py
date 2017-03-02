@@ -33,7 +33,7 @@ def printCover():
 | |\/| |/ _ \| '_ \ / _` |/ _ \ / _ \| __| __/ _` |/ __| |/ /
 | |  | | (_) | | | | (_| | (_) / ___ \ |_| || (_| | (__|   <
 |_|  |_|\___/|_| |_|\__, |\___/_/   \_\__|\__\__,_|\___|_|\_\  Author: sixwhale
-                    |___/                                      Version: 1.0.2
+                    |___/                                      Version: 1.1.0
 '''
 
 def printUsage():
@@ -63,6 +63,9 @@ def printErrMsg(message):
 
 def printInfoMsg(message):
 	print(Fore.GREEN+str(message))
+
+def printWarnMsg(message):
+	print(Fore.YELLOW+str(message))
 
 def filterStringValue(value, charRegex, replacement=""):
 	"""
